@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <iostream> 
 #include <ostream>
+#include <map>
+#include "TString.h"
 
 class Logger {
  public:
@@ -16,9 +18,23 @@ class Logger {
   void Set_cerr(){s=&std::cerr;}
   void Set_stream(std::ostream *stream){s=stream;}
 
+  // switch level for one individual file
+  void setLevelForClass(TString file, level l){
+	  if (file.Contains(".")) stripFile(file);
+	  individualFileLevels.insert(std::pair<TString, level>(file, l));
+	  useIndividualFileLevels = true;
+  }
+
   // Manipulate output levels
   void SetLevel(level _l){l=_l;}
-  level Level(){return l;}
+  level Level(TString file = ""){
+	  if (useIndividualFileLevels){
+		  stripFile(file);
+		  std::map<TString, level>::iterator it = individualFileLevels.find(file);
+		  if (it != individualFileLevels.end()) return it->second;
+	  }
+	  return l;
+  }
   std::ostream& Stream(){return (*s);}
 
   static int levelColor(level l){
@@ -32,16 +48,30 @@ class Logger {
   }
 
  private:
-  Logger():l(Verbose){Set_cout();}
+  Logger():
+	  l(Verbose),
+	  useIndividualFileLevels(false){
+	  Set_cout();
+  }
   virtual ~Logger(){};
   
   static Logger *instance;
   level l;
+  bool useIndividualFileLevels;
+  std::map<TString, level> individualFileLevels;
   std::ostream *s;
+
+  // remove extension (like .h or .cxx) and preceding folders from file name
+  void stripFile(TString& file){
+	  Ssiz_t lastDot = file.Last('.');
+	  Ssiz_t lastSlash = file.Last('/');
+	  if (lastDot != -1)	file.Remove(lastDot);
+	  if (lastSlash != -1)	file.Remove(0, lastSlash+1);
+  }
 };
 
 #define Logger(level) \
-  if(Logger::Instance()->Level()>=level) \
+  if(Logger::Instance()->Level(__FILE__) >= level) \
     Logger::Instance()->Stream() << "\033[1;" << Logger::levelColor(level) << "m" << #level << "\033[0m" << "[" << __FILE__ << " " <<  __func__ << "(..) l. " << __LINE__ << "] - "
 
 #endif
